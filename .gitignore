@@ -1,0 +1,9 @@
+# Ignorowanie pliku .env z wrażliwymi danymi
+.env
+
+# Ignorowanie wirtualnego środowiska Python
+venv/
+
+# Ignorowanie plików tymczasowych
+__pycache__/
+*.pyc
