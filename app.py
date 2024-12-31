@@ -51,15 +51,53 @@ async def authenticate():
     payload = {"identifier": CAPITAL_EMAIL, "password": CAPITAL_PASSWORD}
     headers = {"Content-Type": "application/json", "X-CAP-API-KEY": CAPITAL_API_KEY}
 
+    # Logowanie szczegółów żądania
+    logger.info(f"Attempting authentication with URL: {url}")
+    logger.info(f"Payload: {payload}")
+    logger.info(f"Headers: {headers}")
+
+    # Sprawdzanie brakujących danych środowiskowych
+    if not CAPITAL_API_KEY:
+        logger.error("CAPITAL_API_KEY is missing. Please check your environment variables.")
+        return None
+    if not CAPITAL_EMAIL:
+        logger.error("CAPITAL_EMAIL is missing. Please check your environment variables.")
+        return None
+    if not CAPITAL_PASSWORD:
+        logger.error("CAPITAL_PASSWORD is missing. Please check your environment variables.")
+        return None
+
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
-            logger.info("Authentication successful")
-            cst = response.headers.get("CST")
-            x_security_token = response.headers.get("X-SECURITY-TOKEN")
-            return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
-        else:
-            logger.error(f"Authentication failed: {response.status_code} - {response.text}")
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+
+            # Logowanie odpowiedzi z API
+            logger.info(f"Authentication response status: {response.status_code}")
+            logger.info(f"Authentication response text: {response.text}")
+
+            if response.status_code == 401:
+                error_details = response.json()
+                logger.error("Authentication failed with error 401.")
+                logger.error(f"Error details: {error_details}")
+
+                if "invalid" in error_details.get("errorCode", "").lower():
+                    logger.error("Possible causes of the error:")
+                    logger.error("1. Check if your API_KEY is correct.")
+                    logger.error("2. Verify if your EMAIL and PASSWORD are correct.")
+                    logger.error("3. Ensure your API_KEY is active and linked to the correct account.")
+                return None
+
+            if response.status_code == 200:
+                logger.info("Authentication successful")
+                cst = response.headers.get("CST")
+                x_security_token = response.headers.get("X-SECURITY-TOKEN")
+                logger.info(f"Received CST: {cst}, X-SECURITY-TOKEN: {x_security_token}")
+                return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
+            else:
+                logger.error(f"Authentication failed: {response.status_code} - {response.text}")
+                return None
+        except Exception as e:
+            logger.error(f"Error during authentication: {e}")
             return None
 
 # ==========================
