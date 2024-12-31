@@ -128,3 +128,8 @@ async def webhook(request: Request):
 async def root():
     """Testowy endpoint do sprawdzenia stanu serwera."""
     return {"message": "Server is running"}
+
+@app.head("/")
+async def root_head():
+    """Obsługa metody HEAD dla endpointu głównego (/)."""
+    return {"message": "Server is running"}
