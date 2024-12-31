@@ -3,7 +3,6 @@ import httpx
 import asyncio
 import logging
 from fastapi import FastAPI, Request
-from python_decouple import config
 
 # ==========================
 # Ustawienia logowania
@@ -16,11 +15,11 @@ logger = logging.getLogger(__name__)
 # ==========================
 app = FastAPI()
 
-CAPITAL_API_URL = config("CAPITAL_API_URL", default="https://demo-api-capital.backend-capital.com/api/v1")
-CAPITAL_EMAIL = config("CAPITAL_EMAIL")
-CAPITAL_PASSWORD = config("CAPITAL_PASSWORD")
-CAPITAL_API_KEY = config("CAPITAL_API_KEY")
-PING_URL = config("PING_URL")
+CAPITAL_API_URL = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
+CAPITAL_EMAIL = os.getenv("CAPITAL_EMAIL")
+CAPITAL_PASSWORD = os.getenv("CAPITAL_PASSWORD")
+CAPITAL_API_KEY = os.getenv("CAPITAL_API_KEY")
+PING_URL = os.getenv("PING_URL", "https://example-ping-url.onrender.com")
 
 # ==========================
 # Pingowanie dla utrzymania serwera
