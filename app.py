@@ -15,12 +15,14 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # Wszystkie dane zapisane w kodzie
+# ==========================
 CAPITAL_API_URL = "https://demo-api-capital.backend-capital.com/api/v1"
 CAPITAL_EMAIL = "am.zg@icloud.com"
 CAPITAL_PASSWORD_WITH_ACCENT = "1DawaćSiano2#!"  # Hasło z polskimi znakami
 CAPITAL_PASSWORD_NO_ACCENT = "1DawacSiano2#!"    # Hasło bez polskich znaków
 CAPITAL_API_KEY = "YIsbQNUrgUV7dY0a"
-PING_URL = "https://tradingbot-qi86.onrender.com"
+PING_URL = "https://tradingbot-qdqe.onrender.com"  # Link do pingowania
+
 
 # ==========================
 # Pingowanie dla utrzymania serwera Render
