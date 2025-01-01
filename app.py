@@ -19,7 +19,7 @@ app = FastAPI()
 # ==========================
 CAPITAL_API_URL = "https://demo-api-capital.backend-capital.com/api/v1"
 CAPITAL_EMAIL = "am.zg@icloud.com"
-CAPITAL_PASSWORD = "1DawaćSiano2#!"
+CAPITAL_PASSWORD = "1DawacSiano2#!"
 CAPITAL_API_KEY = "YIsbQNUrgUV7dY0a"
 PING_URL = "https://tradingbot-qi86.onrender.com"
 
