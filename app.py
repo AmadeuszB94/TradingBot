@@ -65,26 +65,15 @@ async def authenticate():
     payload = {"identifier": CAPITAL_EMAIL, "password": CAPITAL_PASSWORD}
     headers = {"Content-Type": "application/json", "X-CAP-API-KEY": CAPITAL_API_KEY}
 
-    logger.info(f"Attempting authentication with URL: {url}")
-    logger.info(f"Payload: {payload}")
-    logger.info(f"Headers: {headers}")
-
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.post(url, json=payload, headers=headers)
-        logger.info(f"Authentication response status: {response.status_code}")
-        logger.info(f"Authentication response text: {response.text}")
         if response.status_code == 200:
             logger.info("Authentication successful")
             cst = response.headers.get("CST")
             x_security_token = response.headers.get("X-SECURITY-TOKEN")
             return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
         else:
-            logger.error(f"Authentication failed with error {response.status_code}.")
-            logger.error(f"Error details: {response.json()}")
-            logger.error("Possible causes of the error:")
-            logger.error("1. Check if your API_KEY is correct.")
-            logger.error("2. Verify if your EMAIL and PASSWORD are correct.")
-            logger.error("3. Ensure your API_KEY is active and linked to the correct account.")
+            logger.error(f"Authentication failed: {response.status_code} - {response.text}")
             return None
 
 # ==========================
@@ -106,9 +95,18 @@ async def webhook(request: Request):
     tp = data.get("tp")
     sl = data.get("sl")
 
-    if not all([action, symbol, size]):
+    # Sprawdzenie wymaganych pól
+    if not action or not symbol or not size:
         logger.error("Missing required fields in the request")
         return {"error": "Missing required fields (action, symbol, size)"}
+
+    try:
+        size = float(size)  # Sprawdzenie, czy size jest liczbą
+        if size <= 0:
+            raise ValueError("Size must be a positive number")
+    except ValueError as e:
+        logger.error(f"Invalid size value: {e}")
+        return {"error": "Invalid size value. Must be a positive number."}
 
     # Autoryzacja
     tokens = await authenticate()
@@ -118,7 +116,7 @@ async def webhook(request: Request):
     # Przygotowanie payload do zlecenia
     payload = {
         "epic": symbol,
-        "size": float(size),
+        "size": size,
         "direction": action,
         "orderType": "MARKET",
         "currencyCode": "USD",
