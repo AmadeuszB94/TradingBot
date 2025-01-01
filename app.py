@@ -1,4 +1,3 @@
-import os
 import httpx
 import asyncio
 import logging
@@ -15,11 +14,14 @@ logger = logging.getLogger(__name__)
 # ==========================
 app = FastAPI()
 
-CAPITAL_API_URL = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
-CAPITAL_EMAIL = os.getenv("CAPITAL_EMAIL")
-CAPITAL_PASSWORD = os.getenv("CAPITAL_PASSWORD")
-CAPITAL_API_KEY = os.getenv("CAPITAL_API_KEY")
-PING_URL = os.getenv("PING_URL", "https://example-ping-url.onrender.com")
+# ==========================
+# Statyczne dane do Capital.com
+# ==========================
+CAPITAL_API_URL = "https://demo-api-capital.backend-capital.com/api/v1"
+CAPITAL_EMAIL = "am.zg@icloud.com"
+CAPITAL_PASSWORD = "1Dawa4Siano2#!"
+CAPITAL_API_KEY = "YIsbONUrgUV7dY0a"
+PING_URL = "https://tradingbot-qi86.onrender.com"
 
 # ==========================
 # Pingowanie dla utrzymania serwera Render
@@ -65,20 +67,6 @@ async def keep_api_alive():
         await asyncio.sleep(540)  # Ping co 9 minut (540 sekund)
 
 # ==========================
-# Sprawdzanie zmiennych środowiskowych
-# ==========================
-@app.on_event("startup")
-async def check_environment_variables():
-    """Sprawdzanie zmiennych środowiskowych na starcie aplikacji."""
-    logger.info("Sprawdzanie zmiennych środowiskowych...")
-    logger.info(f"CAPITAL_API_URL: {CAPITAL_API_URL}")
-    logger.info(f"CAPITAL_EMAIL: {CAPITAL_EMAIL}")
-    logger.info(f"CAPITAL_PASSWORD: {'*' * len(CAPITAL_PASSWORD) if CAPITAL_PASSWORD else 'NOT SET'}")
-    logger.info(f"CAPITAL_API_KEY: {'*' * len(CAPITAL_API_KEY) if CAPITAL_API_KEY else 'NOT SET'}")
-    if not all([CAPITAL_API_URL, CAPITAL_EMAIL, CAPITAL_PASSWORD, CAPITAL_API_KEY]):
-        logger.error("Brakuje jednej lub więcej zmiennych środowiskowych!")
-
-# ==========================
 # Autoryzacja w Capital.com
 # ==========================
 async def authenticate():
@@ -87,9 +75,13 @@ async def authenticate():
     payload = {"identifier": CAPITAL_EMAIL, "password": CAPITAL_PASSWORD}
     headers = {"Content-Type": "application/json", "X-CAP-API-KEY": CAPITAL_API_KEY}
 
+    logger.info(f"Autoryzacja: URL={url}, Payload={payload}, Headers={headers}")
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             response = await client.post(url, json=payload, headers=headers)
+            logger.info(f"Response status: {response.status_code}")
+            logger.info(f"Response text: {response.text}")
             if response.status_code == 200:
                 logger.info("Authentication successful")
                 cst = response.headers.get("CST")
@@ -97,10 +89,6 @@ async def authenticate():
                 return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
             elif response.status_code == 401:
                 logger.error(f"Authentication failed: {response.status_code} - {response.text}")
-                logger.error("Possible reasons:")
-                logger.error("- Invalid email or password.")
-                logger.error("- Invalid or inactive API key.")
-                logger.error("- Check if you're using the correct endpoint for demo or live.")
             else:
                 logger.error(f"Unexpected response: {response.status_code} - {response.text}")
         except Exception as e:
@@ -181,11 +169,6 @@ async def webhook(request: Request):
 @app.get("/")
 async def root():
     """Testowy endpoint do sprawdzenia stanu serwera."""
-    return {"message": "Server is running"}
-
-@app.head("/")
-async def root_head():
-    """Obsługa metody HEAD dla endpointu głównego (/)."""
     return {"message": "Server is running"}
 
 # ==========================
