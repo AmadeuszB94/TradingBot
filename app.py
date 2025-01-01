@@ -22,7 +22,7 @@ CAPITAL_API_KEY = os.getenv("CAPITAL_API_KEY")
 PING_URL = os.getenv("PING_URL", "https://example-ping-url.onrender.com")
 
 # ==========================
-# Pingowanie dla utrzymania serwera
+# Pingowanie dla utrzymania serwera Render
 # ==========================
 async def keep_alive():
     """Funkcja utrzymująca serwer aktywny przez wysyłanie pingu."""
@@ -36,11 +36,33 @@ async def keep_alive():
                     logger.warning(f"Ping returned status {response.status_code}")
         except Exception as e:
             logger.error(f"Error during ping: {e}")
-        await asyncio.sleep(45)
+        await asyncio.sleep(45)  # Ping co 45 sekund
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(keep_alive())
+# ==========================
+# Pingowanie dla utrzymania aktywności API Capital.com
+# ==========================
+async def keep_api_alive():
+    """Funkcja podtrzymująca aktywność API Capital.com."""
+    while True:
+        tokens = await authenticate()  # Uwierzytelnienie przed pingowaniem
+        if not tokens:
+            logger.error("Cannot ping Capital.com API because authentication failed.")
+        else:
+            url = f"{CAPITAL_API_URL}/ping"
+            headers = {
+                "CST": tokens["CST"],
+                "X-SECURITY-TOKEN": tokens["X-SECURITY-TOKEN"]
+            }
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(url, headers=headers)
+                    if response.status_code == 200:
+                        logger.info("API ping successful: Capital.com session is alive")
+                    else:
+                        logger.warning(f"API ping returned status {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error during API ping: {e}")
+        await asyncio.sleep(540)  # Ping co 9 minut (540 sekund)
 
 # ==========================
 # Sprawdzanie zmiennych środowiskowych
@@ -64,23 +86,6 @@ async def authenticate():
     url = f"{CAPITAL_API_URL}/session"
     payload = {"identifier": CAPITAL_EMAIL, "password": CAPITAL_PASSWORD}
     headers = {"Content-Type": "application/json", "X-CAP-API-KEY": CAPITAL_API_KEY}
-
-    # Logowanie używanych danych (bez wyświetlania hasła)
-    logger.info("Attempting authentication with Capital.com API")
-    logger.info(f"API URL: {url}")
-    logger.info(f"Email: {CAPITAL_EMAIL}")
-    logger.info(f"API Key: {'*' * len(CAPITAL_API_KEY) if CAPITAL_API_KEY else 'NOT SET'}")
-
-    # Sprawdzenie brakujących zmiennych
-    if not CAPITAL_EMAIL or not CAPITAL_PASSWORD or not CAPITAL_API_KEY:
-        logger.error("Missing one or more required environment variables for authentication.")
-        if not CAPITAL_EMAIL:
-            logger.error("CAPITAL_EMAIL is missing or not set.")
-        if not CAPITAL_PASSWORD:
-            logger.error("CAPITAL_PASSWORD is missing or not set.")
-        if not CAPITAL_API_KEY:
-            logger.error("CAPITAL_API_KEY is missing or not set.")
-        return None
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
@@ -182,3 +187,11 @@ async def root():
 async def root_head():
     """Obsługa metody HEAD dla endpointu głównego (/)."""
     return {"message": "Server is running"}
+
+# ==========================
+# Uruchamianie funkcji pingowania
+# ==========================
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(keep_alive())       # Pingowanie Render co 45 sekund
+    asyncio.create_task(keep_api_alive())  # Pingowanie API Capital.com co 9 minut
