@@ -1,61 +1,3 @@
-import os
-import httpx
-import asyncio
-import logging
-from fastapi import FastAPI, Request
-
-# ==========================
-# Ustawienia logowania
-# ==========================
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# ==========================
-# Konfiguracja aplikacji
-# ==========================
-app = FastAPI()
-
-CAPITAL_API_URL = os.getenv("CAPITAL_API_URL", "https://demo-api-capital.backend-capital.com/api/v1")
-CAPITAL_EMAIL = os.getenv("CAPITAL_EMAIL")
-CAPITAL_PASSWORD = os.getenv("CAPITAL_PASSWORD")
-CAPITAL_API_KEY = os.getenv("CAPITAL_API_KEY")
-PING_URL = os.getenv("PING_URL", "https://example-ping-url.onrender.com")
-
-# ==========================
-# Pingowanie dla utrzymania serwera
-# ==========================
-async def keep_alive():
-    """Funkcja utrzymująca serwer aktywny przez wysyłanie pingu."""
-    while True:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(PING_URL)
-                if response.status_code == 200:
-                    logger.info("Ping successful: Server is alive")
-                else:
-                    logger.warning(f"Ping returned status {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error during ping: {e}")
-        await asyncio.sleep(45)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(keep_alive())
-
-# ==========================
-# Sprawdzanie zmiennych środowiskowych
-# ==========================
-@app.on_event("startup")
-async def check_environment_variables():
-    """Sprawdzanie zmiennych środowiskowych na starcie aplikacji."""
-    logger.info("Sprawdzanie zmiennych środowiskowych...")
-    logger.info(f"CAPITAL_API_URL: {CAPITAL_API_URL}")
-    logger.info(f"CAPITAL_EMAIL: {CAPITAL_EMAIL}")
-    logger.info(f"CAPITAL_PASSWORD: {'*' * len(CAPITAL_PASSWORD) if CAPITAL_PASSWORD else 'NOT SET'}")
-    logger.info(f"CAPITAL_API_KEY: {'*' * len(CAPITAL_API_KEY) if CAPITAL_API_KEY else 'NOT SET'}")
-    if not all([CAPITAL_API_URL, CAPITAL_EMAIL, CAPITAL_PASSWORD, CAPITAL_API_KEY]):
-        logger.error("Brakuje jednej lub więcej zmiennych środowiskowych!")
-
 # ==========================
 # Autoryzacja w Capital.com
 # ==========================
@@ -65,94 +7,40 @@ async def authenticate():
     payload = {"identifier": CAPITAL_EMAIL, "password": CAPITAL_PASSWORD}
     headers = {"Content-Type": "application/json", "X-CAP-API-KEY": CAPITAL_API_KEY}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(url, json=payload, headers=headers)
-        if response.status_code == 200:
-            logger.info("Authentication successful")
-            cst = response.headers.get("CST")
-            x_security_token = response.headers.get("X-SECURITY-TOKEN")
-            return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
-        else:
-            logger.error(f"Authentication failed: {response.status_code} - {response.text}")
-            return None
+    # Logowanie używanych danych (bez wyświetlania hasła)
+    logger.info("Attempting authentication with Capital.com API")
+    logger.info(f"API URL: {url}")
+    logger.info(f"Email: {CAPITAL_EMAIL}")
+    logger.info(f"API Key: {'*' * len(CAPITAL_API_KEY) if CAPITAL_API_KEY else 'NOT SET'}")
+    logger.info(f"Password: {'*' * len(CAPITAL_PASSWORD) if CAPITAL_PASSWORD else 'NOT SET'}")
 
-# ==========================
-# Webhook do obsługi zleceń
-# ==========================
-@app.post("/webhook")
-async def webhook(request: Request):
-    """Endpoint webhook do obsługi TradingView."""
-    try:
-        data = await request.json()
-        logger.info(f"Received data: {data}")
-    except Exception as e:
-        logger.error(f"Error parsing JSON: {e}")
-        return {"error": "Invalid JSON payload"}
-
-    action = data.get("action", "").upper()
-    symbol = data.get("symbol")
-    size = data.get("size")
-    tp = data.get("tp")
-    sl = data.get("sl")
-
-    # Sprawdzenie wymaganych pól
-    if not action or not symbol or not size:
-        logger.error("Missing required fields in the request")
-        return {"error": "Missing required fields (action, symbol, size)"}
-
-    try:
-        size = float(size)  # Sprawdzenie, czy size jest liczbą
-        if size <= 0:
-            raise ValueError("Size must be a positive number")
-    except ValueError as e:
-        logger.error(f"Invalid size value: {e}")
-        return {"error": "Invalid size value. Must be a positive number."}
-
-    # Autoryzacja
-    tokens = await authenticate()
-    if not tokens:
-        return {"error": "Authentication failed"}
-
-    # Przygotowanie payload do zlecenia
-    payload = {
-        "epic": symbol,
-        "size": size,
-        "direction": action,
-        "orderType": "MARKET",
-        "currencyCode": "USD",
-        "limitLevel": float(tp) if tp else None,
-        "stopLevel": float(sl) if sl else None,
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "CST": tokens["CST"],
-        "X-SECURITY-TOKEN": tokens["X-SECURITY-TOKEN"]
-    }
+    # Sprawdzenie brakujących zmiennych
+    if not CAPITAL_EMAIL or not CAPITAL_PASSWORD or not CAPITAL_API_KEY:
+        logger.error("Missing one or more required environment variables for authentication.")
+        if not CAPITAL_EMAIL:
+            logger.error("CAPITAL_EMAIL is missing or not set.")
+        if not CAPITAL_PASSWORD:
+            logger.error("CAPITAL_PASSWORD is missing or not set.")
+        if not CAPITAL_API_KEY:
+            logger.error("CAPITAL_API_KEY is missing or not set.")
+        return None
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            order_url = f"{CAPITAL_API_URL}/positions"
-            response = await client.post(order_url, json=payload, headers=headers)
+            response = await client.post(url, json=payload, headers=headers)
             if response.status_code == 200:
-                logger.info("Order executed successfully")
-                return {"message": "Order executed successfully", "details": response.json()}
+                logger.info("Authentication successful")
+                cst = response.headers.get("CST")
+                x_security_token = response.headers.get("X-SECURITY-TOKEN")
+                return {"CST": cst, "X-SECURITY-TOKEN": x_security_token}
+            elif response.status_code == 401:
+                logger.error(f"Authentication failed: {response.status_code} - {response.text}")
+                logger.error("Possible reasons:")
+                logger.error("- Invalid email or password.")
+                logger.error("- Invalid or inactive API key.")
+                logger.error("- Check if you're using the correct endpoint for demo or live.")
             else:
-                logger.error(f"Order failed: {response.status_code} - {response.text}")
-                return {"error": "Order execution failed", "details": response.text}
+                logger.error(f"Unexpected response: {response.status_code} - {response.text}")
         except Exception as e:
-            logger.error(f"Error sending order: {e}")
-            return {"error": "Error sending order"}
-
-# ==========================
-# Endpoint testowy (ping)
-# ==========================
-@app.get("/")
-async def root():
-    """Testowy endpoint do sprawdzenia stanu serwera."""
-    return {"message": "Server is running"}
-
-@app.head("/")
-async def root_head():
-    """Obsługa metody HEAD dla endpointu głównego (/)."""
-    return {"message": "Server is running"}
+            logger.error(f"Error during authentication: {e}")
+    return None
